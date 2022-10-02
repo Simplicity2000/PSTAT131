@@ -1,0 +1,76 @@
+---
+title: "Assignment1"
+output: html_document
+date: "2022-10-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 1
+# Answer: Supervised statistical learning involves building a     statistical model for predicting, or estimating, an output based on one or more inputs.Unsupervised statistical learning involves building a statistical model for learning relationships and structure based on inputs but no supervising output(from page #1 of the book).Supervised statistical learning has an associated response with each input, while unsupervised statistical learning has a vector of observed measurement but no associated response(from page #1 of the book).
+
+# Question 2
+# Answer: A regression model has quantitative outputs, while a classification model has qualitative outputs(from lecture1).
+
+# Question 3
+# Answer: Mean Square Error and Root Mean Square Error are two commonly used metrics for regression. Training/Test Error Rate and Recall are two commonly used metrics for classification.
+
+# Question 4
+# Answer: Descriptive model is best to visually emphasize a trend in a data. Predictive model is to predict Y with minimum reducible error and is not focused on hypothesis test. Inferencial model is to test theories and make casual claims by stating relationship between outcome and predictors(from lecture1).
+
+# Question 5
+# Answer: Mechanistics model uses a theory to predict what will happen in real world, and empirical-driven model studies real-world events to develop a theory(from google). Difference is that mechanistics is based on theory and empirical is based on real-world event. Similarity is to predict the relationship between predictor and responsor. I think that mechanistics model is easier to understand because it gives you the theory and all the principle, but it is hard to see how the theory comes from the real-world events which requires logic and knowledge.Bias-Variance Tradeoff is similar to those models since it aims to show how the relationship between bias and variance affects the prediction.
+
+# Question 6
+# Answer: The first question is predictive because it wants to predict the voters' preference toward candidate. The second question is inferential because it tried to examine whether getting to know the candidate in person is better or worse for predicting voters' preference. 
+
+```{r}
+install.packages("tidyverse")
+install.packages("tidymodels")
+install.packages("ISLR")
+```
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+```{r}
+#Exercise 1
+hist(mpg$hwy)
+# The median of hwy mpg is between 20-25, the mode of hwy mpg is between 25-30, and most of the hwy mpg falls into 15-20 and 25-30.
+```
+```{r}
+#Exercise 2
+plot(mpg$hwy,mpg$cty)
+#There seems to be a positive and kind of strong linear relationship between hwy and cty. This means that hwy and cty might be positive correlated, with increased hwy cty increased as well.
+```
+
+```{r}
+#Exercise 3
+
+mf <- table(mpg$manufacturer)
+barplot(mf, horiz= TRUE)
+#Dodge produces the most car and Lincoln produces the least car.
+
+```
+```{r}
+#Exercise 4
+mpg %>% 
+  group_by(cyl)
+boxplot(mpg$hwy)
+```
+
+```{r}
+#Exercise 5
+#install.packages("corrplot")
+#library(corrplot)
+
+corrplot(mpg,  type = 'lower', diag = FALSE)
+```
+
+
+
+
+
+

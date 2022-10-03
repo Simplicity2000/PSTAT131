@@ -27,9 +27,9 @@ knitr::opts_chunk$set(echo = TRUE)
 # Answer: The first question is predictive because it wants to predict the voters' preference toward candidate. The second question is inferential because it tried to examine whether getting to know the candidate in person is better or worse for predicting voters' preference. 
 
 ```{r}
-install.packages("tidyverse")
-install.packages("tidymodels")
-install.packages("ISLR")
+#install.packages("tidyverse")
+#install.packages("tidymodels")
+#install.packages("ISLR")
 ```
 ```{r}
 library(tidyverse)
@@ -56,17 +56,17 @@ barplot(mf, horiz= TRUE)
 ```
 ```{r}
 #Exercise 4
-mpg %>% 
-  group_by(cyl)
-boxplot(mpg$hwy)
+boxplot(mpg$hwy~mpg$cyl)
+#With more cylinders, it appears to have less mpg on hwy than those with fewer cylinders.
 ```
 
 ```{r}
 #Exercise 5
 #install.packages("corrplot")
-#library(corrplot)
-
-corrplot(mpg,  type = 'lower', diag = FALSE)
+library(corrplot)
+M <- cor(mtcars)
+corrplot(M,  type = 'lower', diag = FALSE)
+#cyl-mpg;disp-mpg,cyl;hp-mpg,cyl;disp,drat-mpg,cyl,disp,hp;wt-mpg,cyl,disp,hp,drat;qsec-mpg,cyl,disp,hp,drat;vs-mpg,cyl,disp,hp,drat;am-mpg,cyl,disp,hp,drat;gear-mpg,cyl,disp,hp,drat;carb-mpg,cyl,disp,hp,drat are negatively correlated, and the rest are positively correlated.The surprising correlation is that carbon and gear are positively correlated.
 ```
 
 

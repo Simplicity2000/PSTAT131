@@ -1,0 +1,49 @@
+---
+title: "Finalproject Memo"
+output: html_document
+date: "2022-10-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Overview of dataset:
+#1.The dataset includes FIFA player information on 110 different aspects. 
+#2.The direct link to the dataset is https://www.kaggle.com/datasets/stefanoleone992/fifa-22-complete-player-dataset?select=players_22.csv.I can just download the csv file and upload it to R studio.
+#3.It has 19239 observations and around 100 predictors(neglect the name,id,url,etc.) But I will probably confine it to 250 observations and 10 predictors in the Premier League.
+#4.I'll be working with both numerical and categorical variable.
+#5.There is no missing data because it is the information collected from every player.
+
+```
+
+```{r}
+#Overview of researh questions
+#I'm interested in predicting the overall attribute(rating) in the game in terms of their skills, physical attribute, and so on. What are the main factors for giving a player a rating?
+#Response variable is the overall attribute(rating) of players. It should be a reflect on the overall physical and performance during this season.
+#The question will be answered with a regression approach.
+#I think that predictors like value/wage, body type, and shooting skill will be crucial.
+#My goal will be a combination of description and predictive model.
+```
+
+```{r}
+#Proposed timeline
+#Week2-week3:having data loaded
+#week4-week8:EDA process
+#week9-week10:having whole report refined and asking for advice on improvement
+```
+
+```{r}
+#The problems will be the utilization of knowledge and model learned in class. For now, it's impossible for me to build a model that have precision, but I hope that when I learn more about the EDA and model I can apply those ideas to my project.
+```
+
+
+
+
+
+
+
+
+
+

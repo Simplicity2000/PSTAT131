@@ -1,0 +1,121 @@
+---
+title: "hw5"
+output: html_document
+date: "2022-11-20"
+---
+
+```{r}
+#install.packages("janitor")
+#install.packages("glmnet")
+
+library(tidyverse)
+library(tidymodels)
+library(janitor)
+library(dplyr)
+library(ggplot2)
+library(glmnet)
+library(yardstick)
+pkm <- read.csv(file = "C:/ucsb 2022/2022Fall/131/homework-5/homework-5/data/Pokemon.csv")
+```
+
+### Exercise 1
+
+```{r}
+pkm_cnames <- clean_names(pkm)
+# It gives a tidier way to display for the variable names by lowering the case of the first letter and turning the dot or dots to underscore. It makes easy for us to track the variable names as well as avoiding error in the later syntax.
+```
+
+### Exercise 2
+
+```{r}
+barplot(table(pkm_cnames$type_1), las = 3)
+# There are 18 classes. Flying class has very few Pokemon.
+pkm_1 <- pkm_cnames %>%
+  filter(type_1 == c('Bug', 'Fire', 'Grass', 'Normal', 'Water', 'Psychic'))
+pkm_1$type_1 <- as.factor(pkm_1$type_1)
+pkm_1$legendary <- as.factor(pkm_1$legendary)
+
+```
+
+
+### Exercise 3
+
+```{r}
+set.seed(1012)
+
+pkm_split <- initial_split(pkm_1, prop = 0.80, strata = type_1)
+pkm_train <- training(pkm_split)
+pkm_test <- testing(pkm_split)
+
+dim(pkm_train)
+dim(pkm_test)
+# We have enough data in training set and in testing set.
+
+pkm_fold <- vfold_cv(pkm_train, v = 5, strata = type_1)
+
+# It will maintain the same class ratio throughout the process, and it is good on a limited data sample.
+```
+
+### Exercise 4
+
+```{r}
+pkm_recipe <- recipe(type_1 ~ legendary+generation+sp_atk+attack+speed+defense+hp+sp_def, data = pkm_train)%>%
+  step_dummy(legendary,generation)%>%
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors())
+```
+
+### Exercise 5
+
+```{r}
+pkm_spec <- 
+  multinom_reg(penalty = tune(), mixture = 0) %>% 
+  set_mode("classification")%>%
+  set_engine("glmnet")
+
+pkm_workflow <- workflow() %>% 
+  add_recipe(pkm_recipe) %>% 
+  add_model(pkm_spec)
+
+
+penalty_grid <- grid_regular(penalty(range = c(-5, 5)), levels = 10)
+penalty_grid
+mixture_grid <- grid_regular(mixture(range = c(0,1)), levels = 10)
+mixture_grid
+
+# There will be 2x5=10 models in total.
+```
+
+### Exercise 6
+
+```{r}
+tune_res <- tune_grid(
+  pkm_workflow,
+  resamples = pkm_fold, 
+  grid = penalty_grid
+)
+
+autoplot(tune_res)
+# Smaller value of penalty and mixture produce better accurary and roc_auc.
+```
+
+### Exercise 7
+
+```{r}
+best_penalty <- select_best(tune_res, metric = "roc_auc")
+best_penalty
+
+
+pkm_final <- finalize_workflow(pkm_workflow, best_penalty)
+pkm_final_fit <- fit(pkm_final, data = pkm_train)
+#augment(pkm_final_fit, new_data = pkm_test) %>%
+  #rsq(truth = type_1, estiamte)
+```
+
+### Exercise 8
+need to ask TA
+
+
+
+
+

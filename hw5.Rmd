@@ -31,7 +31,11 @@ pkm_cnames <- clean_names(pkm)
 barplot(table(pkm_cnames$type_1), las = 3)
 # There are 18 classes. Flying class has very few Pokemon.
 pkm_1 <- pkm_cnames %>%
+<<<<<<< HEAD
   filter(type_1 %in% c('Bug', 'Fire', 'Grass', 'Normal', 'Water', 'Psychic'))
+=======
+  filter(type_1 == c('Bug', 'Fire', 'Grass', 'Normal', 'Water', 'Psychic'))
+>>>>>>> ce073783be81265ecad9febefe03fc7967bc2f41
 pkm_1$type_1 <- as.factor(pkm_1$type_1)
 pkm_1$legendary <- as.factor(pkm_1$legendary)
 
@@ -69,7 +73,11 @@ pkm_recipe <- recipe(type_1 ~ legendary+generation+sp_atk+attack+speed+defense+h
 
 ```{r}
 pkm_spec <- 
+<<<<<<< HEAD
   multinom_reg(penalty = tune(), mixture = tune()) %>% 
+=======
+  multinom_reg(penalty = tune(), mixture = 0) %>% 
+>>>>>>> ce073783be81265ecad9febefe03fc7967bc2f41
   set_mode("classification")%>%
   set_engine("glmnet")
 
@@ -78,10 +86,19 @@ pkm_workflow <- workflow() %>%
   add_model(pkm_spec)
 
 
+<<<<<<< HEAD
 net_grid <- grid_regular(penalty(range = c(-5, 5)), mixture(range = c(0,1)),levels = 10)
 
 
 # There will be 500 models in total.
+=======
+penalty_grid <- grid_regular(penalty(range = c(-5, 5)), levels = 10)
+penalty_grid
+mixture_grid <- grid_regular(mixture(range = c(0,1)), levels = 10)
+mixture_grid
+
+# There will be 2x5=10 models in total.
+>>>>>>> ce073783be81265ecad9febefe03fc7967bc2f41
 ```
 
 ### Exercise 6
@@ -90,7 +107,11 @@ net_grid <- grid_regular(penalty(range = c(-5, 5)), mixture(range = c(0,1)),leve
 tune_res <- tune_grid(
   pkm_workflow,
   resamples = pkm_fold, 
+<<<<<<< HEAD
   grid = net_grid
+=======
+  grid = penalty_grid
+>>>>>>> ce073783be81265ecad9febefe03fc7967bc2f41
 )
 
 autoplot(tune_res)
@@ -106,6 +127,7 @@ best_penalty
 
 pkm_final <- finalize_workflow(pkm_workflow, best_penalty)
 pkm_final_fit <- fit(pkm_final, data = pkm_train)
+<<<<<<< HEAD
 augment(pkm_final_fit, new_data = pkm_test) %>%
   select(type_1,starts_with(".pred"))
 ```
@@ -125,6 +147,14 @@ augment(pkm_final_fit, new_data = pkm_test) %>%
   autoplot("heatmap")
 # We have an overall ROC AUC of 0.68 which is not good enough. We can see from the plot that Normal Pokemon has the best ROC curve. Our model is not good enough to beat 0.8 on testing data. Water is the model best at predicting, and grass is the worst. It may related to the sample size of each type, so we have the most water type to predict the best and the least grass type to predict the worst.
 ```
+=======
+#augment(pkm_final_fit, new_data = pkm_test) %>%
+  #rsq(truth = type_1, estiamte)
+```
+
+### Exercise 8
+need to ask TA
+>>>>>>> ce073783be81265ecad9febefe03fc7967bc2f41
 
 
 

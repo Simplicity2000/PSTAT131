@@ -1,0 +1,525 @@
+---
+title: "Final_Project"
+author: Yihan Cao
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 3
+    code_folding: hide
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+# Introduction
+The purpose of this machine learning project is to predict the overall rating for the Premier League(The highest level of English soccer league system) soccer players in FIFA22. Since we are choosing players from Premier League, our players are all male.
+
+
+## What is FIFA22 Player Overall Rating?
+FIFA 22 is a soccer simulation video game published by EA Sports. In the game, you can choose any player from any league in the world to play for you. Of course, before you choose which one to play you have to obtain players from the market where you can sell and purchase players. Player overall rating is mainly based on criteria such as physicality, dribbling, passing, defending, etc. But, there are offense players and defense players, so how do EA Sports decide their ratings according to their positions? According to [EA Sports](https://www.fourfourtwo.com/features/fifa-22-player-ratings-explained-chemistry-fut-ultimate-team-pace-passing-speed-card), "each of these tailored categories gets a assigned a coefficient ranking, depending on how important it is to that position."
+```{r out.width = "80%", echo = FALSE,fig.align = "center"}
+knitr::include_graphics("C:/ucsb 2022/2022Fall/131/FIFA22_cover.jpg")
+```
+
+## Why might this model relevant?
+As a gamer, you always want to build the best team in the league. The player overall rating is based on ongoing season and past season performance of the player. There are two ways of thinking: one is to purchase many players that are underrated due to bad performance during last season and trade them at high price because of current improved performance; another one is to add diversity and strength to the existing team. Either way, the model can help gamers decide whether they should trade a player or not. 
+
+## Loading Packages and Data
+```{r}
+#Load Packages
+library(tidyverse)
+library(tidymodels)
+library(dplyr) 
+library(corrplot)
+library(ggplot2)
+library(janitor)
+library(randomForest)
+library(discrim)
+library(xgboost)
+library(glmnet)
+library(kknn)
+```
+
+```{r}
+#Read in Data
+players <- read.csv("C:/ucsb 2022/2022Fall/131/players_22.csv")
+```
+
+Here are the key variables and we will be using them in the later process and analysis.
+*  `short_name` : the player's abbreviate name
+
+*  `overall` : overall rating for a player represents their performance in game
+
+*  `club_position` : the position of the player in their clubs
+
+*  `preferred_foot` : the player's preferred foot, left or right
+
+*  `pace` : the score from 0-100 describing the player's pace
+
+*  `shooting` : the score from 0-100 describing the player's shooting skills
+
+*  `passing` : the score from 0-100 describing the player's passing skills
+
+*  `dribbling` : the score from 0-100 describing the player's dribbling skills
+
+*  `defending` : the score from 0-100 describing the player's defending skills
+
+*  `physic` : the score from 0-100 describing the player's physicality
+
+*  `movement_reactions` : the score from 0-100 describing the player's reaction in movement
+
+*  `movement_balance` : the score from 0-100 describing the player's balance skills in movement
+
+*  `power_strength` : the score from 0-100 describing the player's power strength
+
+*  `mentality_vision` : the score from 0-100 describing the player's vision on the field
+
+
+# Data Cleaning 
+Since we only want players in the Premier League, we will select them by subsetting.
+```{r}
+pl_player <- players %>%
+  filter(league_name == "English Premier League")
+```
+
+Now, we have 652 players in the Premier League. We want to only focus on their physicality, dribbling, passing, defending skills, so we will select variables that we interested in.
+```{r}
+pl_player <- pl_player %>%
+  select(short_name, overall, club_position, preferred_foot, pace, shooting, passing, dribbling, defending, physic, movement_reactions, movement_balance, power_strength, mentality_vision, goalkeeping_handling)
+```
+
+We have the rough version of the data frame after previous step, and we need to make the variable name in a more concise way.
+```{r}
+pl_player <- pl_player %>%
+  rename(name = short_name, 
+         overall_rating = overall, 
+         position = club_position, 
+         physical = physic, 
+         reaction = movement_reactions, 
+         balance = movement_balance, 
+         power = power_strength, 
+         vision = mentality_vision, 
+         gk_handling = goalkeeping_handling)
+
+```
+
+Next step is to check if the data frame still have NA and to turn them into 0's.
+```{r}
+sum(is.na(pl_player)) # there are 408 missing values
+
+# Since we do not want to delete any players from the data, we only turn NA to 0
+pl_player[is.na(pl_player)] <- 0
+```
+
+Although players are basically divided into several positions, it is easier to operate if there are only four positions: Forward(including Striker), Midfielder, Defender(all the back positions), and Goalkeeper. 
+
+
+```{r}
+table(pl_player$position)
+
+pl_player <- pl_player %>%
+  filter(position != "SUB")
+pl_player <- pl_player %>%
+  filter(position != "RES")
+# We filter out SUB and RES position because they are like missing values.
+table(pl_player$position)
+
+
+# Consider Forward positions
+forward <- c("CF","LS","RS","ST")
+# Consider Midfielder positions
+midf <- c("CAM", "CDM","CM", "LCM", "LDM", "LM","RCM", "RDM","RM", "RW","LW")
+# Consider Defender positions
+back <- c("CB","LB","LCB","LWB","RB","RCB","RWB")
+# Consider Goalkeeper position
+gk <- c("GK")
+
+# Turn position into a factor 
+pl_player <- pl_player %>%
+  mutate(position = if_else(position %in% forward, "F", position),
+         position = if_else(position %in% midf, "M", position),
+         position = if_else(position %in% back, "B", position),
+         position = if_else(position %in% gk, "GK", position))
+
+pl_player$position <- as.factor(pl_player$position)
+
+# We also want preferred_foot to be a factor(0 for right foot, 1 for left foot)
+pl_player <- pl_player %>%
+  mutate(preferred_foot = if_else(preferred_foot == "Right", 0, 1))
+         
+pl_player$preferred_foot <- as.factor(pl_player$preferred_foot)
+
+```
+
+```{r out.width = "80%", echo = FALSE,fig.align = "center"}
+knitr::include_graphics("C:/ucsb 2022/2022Fall/131/positions_field.png")
+```
+
+# Exploratory Data Analysis
+
+Let's first take a look at our correlation heat map of our variables.
+
+```{r}
+player_numeric <- pl_player %>%
+  select(is.numeric)
+player_cor <- cor(player_numeric)
+corrplot(player_cor)
+```
+From the correlation heat map, I am a little surprised that the official overall_rating only highly positive correlated with the reaction and vision variables but not with any other variables. However, variables such as pace, shooting, passing, dribbling, and physical are highly correlated with each other. Also, goalkeeper's handling skills are all highly negative correlated with those variables mentioned above. What an interesting display of the superficial correlation of our variables.
+
+## Overall Rating Curve
+
+Let's see what the overall rating curve looks like.
+```{r}
+ggplot(pl_player, aes(overall_rating)) +
+  geom_histogram(bins = 20, fill = "green4", col = "white") +
+  labs(title = "Histogram of overall_rating")
+```
+The histogram is right-skewed and matches with my expectation that most players will be ranged from 70 to 85, while only a small portion of players can go up to above 85. 
+
+### Overall rating grouped by positions
+Next, let's check the overall ratings for each position.
+
+```{r}
+ggplot(pl_player, aes(overall_rating)) +
+  geom_histogram(bins = 20, fill = "steelblue", col = "white") +
+  labs(title = "Histogram of overall_rating by positions") +
+  facet_wrap(~ position)
+```
+Although sample size for each position is different, we can notice that each position follows the general curves. Goalkeepers seems to have a comparatively large proportion over 80 ratings, while others have majority ratings falling between 70 and 80. 
+
+### Does preferred foot impact overall rating?
+There is a saying that goes, "Left-handed people always outrate over right-handed ones." So, is there evidence in this data suggesting that saying?(0 for right-foot, 1 for left-foot)
+
+```{r}
+ggplot(pl_player, aes(x = preferred_foot, y = overall_rating))+
+  geom_boxplot()+
+  labs(title = "Boxplot of overall rating by preferred foot")
+```
+Unfortunately, our right-foot players have higher median than that of left-foot players. Right-foot players also have a better upper bound of over 90, but we can justify that there is fewer left-foot players in the league. 
+
+### Possible interaction between preferred foot and position
+From the last graph, we understand that right-foot is still the fashion of soccer games. I am not convinced by that because a good player need to attack from every direction which requires players to be good at both feet. As far as I know, left-foot players usually do better on their weak foot(right foot) than right-foot players do on their weak foot(left foot). Let's plot with both preferred foot and position to see if there is a reason for that.
+
+```{r}
+ggplot(pl_player, aes(x = preferred_foot, y = overall_rating))+
+  geom_point( col = "tomato3") +
+  labs(title = "Histogram of overall_rating by positions") +
+  facet_wrap(~ position)
+```
+That's fair. We have all players regardless of their preferred foot and position at the same level of rating, indicating that we have a fair game here and there is no overpower issue for specific team.
+
+# Setting Up Models
+The data will be split into 80% training data and 20% testing data because we will have enough data for training our model and have a good amount of data for testing our model.We will stratify on our response variable overall_fitting.
+
+```{r}
+set.seed(1012)
+player_split <- initial_split(pl_player, prop = 0.80, strata = overall_rating)
+player_train <- training(player_split)
+player_test <- testing(player_split)
+
+```
+
+## K-fold Cross Validation
+We want to create a stratified cross validation for further use. Let's say 10 folds because that seems to be a fair number of folds. Strata is always our response variable overall_rating.
+
+```{r}
+player_fold <- vfold_cv(player_train, v = 10, strata = overall_rating)
+```
+
+## Recipe building
+Since we have already chosen our relevant variables, we will just create a recipe with overall rating as the response variable and others as explanatory variables. We will need to dummy our categorical predictors and standardize all predictors in the recipe. 
+
+```{r}
+player_recipe <- recipe(overall_rating ~ position+preferred_foot+pace+shooting+passing+dribbling+defending+physical+reaction+balance+power+vision, data = player_train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors())
+```
+
+# Model Building
+Since our data set contains mostly numeric values, we will consider the following models for predicting our overall rating.
+* Random Forest
+* Boosted Trees
+* Lasso Regression
+* K-Nearest Neighbor
+
+## Random Forest Model
+First, we will set up the model and workflow for the random forest.
+
+```{r}
+rf_spec <- rand_forest(
+              min_n = tune(),
+              mtry = tune(),
+              mode = "regression") %>% 
+  set_engine("ranger")
+
+rf_workflow <- workflow() %>% 
+  add_model(rf_spec) %>% 
+  add_recipe(player_recipe)
+```
+
+Next, we want to create a tune grid. The tune grid will be reasonable if we choose the appropriate range for our tuned parameters.
+
+```{r}
+rf_params <- parameters(rf_spec) %>% 
+  update(mtry = mtry(range= c(2, 15)))
+
+rf_grid <- grid_regular(rf_params, levels = 5)
+```
+
+Then we can fit our model by tuning(We will save our data out of the rmd so that we do not need to run the whole thing again for hours).
+
+```{r}
+rf_tune <- tune_grid(
+  rf_workflow, 
+  resamples = player_fold, 
+  grid = rf_grid, 
+)
+save(rf_tune, rf_workflow, file = "C:/ucsb 2022/2022Fall/131/repo/rf_tune.rda")
+```
+
+Now, let's see how our random forest model did on our player training data set. We just need to load the tuning data above and use `autoplot()` function to see the roc_auc curve.
+
+```{r}
+load("C:/ucsb 2022/2022Fall/131/repo/rf_tune.rda")
+
+autoplot(rf_tune, metric = "rmse")
+```
+Taking a look at the plot, it is easy to notice that when the number of randomly selected predictors are 5 we will have the lowest `rmse`.
+
+```{r}
+show_best(rf_tune, metric = "rmse") %>% select(-.estimator, -.config)
+```
+The best `rmse` we will get is 1.905 which is not bad for our data because each attribute is collected from past season data provided by FIFA which might not be that accurate and the data is calculated that may cause error and bias.
+
+## Boosted Trees Model
+Similar to random forest model, we will set up the model and workflow for boosted trees model.
+
+```{r}
+bt_spec <- boost_tree(
+              trees = tune(),
+              min_n = tune(),
+              mtry = tune(),
+              mode = "regression") %>% 
+  set_engine("xgboost")
+
+bt_workflow <- workflow() %>% 
+  add_model(bt_spec) %>% 
+  add_recipe(player_recipe)
+```
+
+We will use the same grid method because the models are similar in some ways.
+
+```{r}
+bt_params <- parameters(bt_spec) %>% 
+  update(mtry = mtry(range= c(2, 15)), trees = trees(range= c(5,10)))
+
+bt_grid <- grid_regular(bt_params, levels = 5)
+
+bt_tune <- tune_grid(
+  bt_workflow, 
+  resamples = player_fold, 
+  grid = bt_grid, 
+)
+save(bt_tune, bt_workflow, file = "C:/ucsb 2022/2022Fall/131/repo/bt_tune.rda")
+```
+
+We load the tuning model and plot it.
+
+```{r}
+load("C:/ucsb 2022/2022Fall/131/repo/bt_tune.rda")
+autoplot(bt_tune)
+```
+The plots are quite beautiful for `rmse` because they are parallel to each other. Now, we want to find out the best one.
+
+```{r}
+show_best(bt_tune, metric = "rmse") %>% select(-.estimator, -.config)
+```
+This time, we get a bigger `rmse` = 3.369 with `mtry` = 8,  `trees`= 10, and `min_n` = 11.
+
+## Lasso Regression Model
+We want to set up the Lasso model and workflow as mentioned in lab5. Here is how it goes.
+
+```{r}
+lasso_spec <- 
+  linear_reg(penalty = tune(), mixture = tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet") 
+
+lasso_workflow <- workflow() %>% 
+  add_recipe(player_recipe) %>% 
+  add_model(lasso_spec)
+```
+
+Now, we want to find an appropriate tune grid for Lasso regression model.
+
+```{r}
+lasso_params <- parameters(lasso_spec) %>% 
+  update(penalty = penalty(range= c(-5, 5)), mixture = mixture(range= c(0,1)))
+
+lasso_grid <- grid_regular(lasso_params, levels = 5)
+```
+
+Here we go. Tune the Lasso regression model to our tune grid.
+
+```{r}
+lasso_tune <- tune_grid(
+  lasso_workflow,
+  resamples = player_fold, 
+  grid = lasso_grid
+)
+save(lasso_tune, lasso_workflow, file = "C:/ucsb 2022/2022Fall/131/repo/lasso_tune.rda")
+```
+
+Do the same as we always do: load data and plot it.
+
+```{r}
+load("C:/ucsb 2022/2022Fall/131/repo/lasso_tune.rda")
+autoplot(lasso_tune)
+```
+
+This is the most plot so far because we have a tie situation here. But, we still need the best one.
+
+```{r}
+show_best(lasso_tune, metric = "rmse")%>% select(-.estimator, -.config)
+```
+This is the best `rmse` so far with value = 1.896, penalty = 0.003162278, and mixture = 1.
+
+## K-Nearest Neighbor Model
+Finally, we want to perform KNN through cross validation. We will set up our model and workflow first for KNN.
+
+```{r}
+knn_spec <- nearest_neighbor(
+    neighbors = tune(),
+    mode = "regression") %>% 
+  set_engine("kknn")
+
+knn_workflow <- workflow() %>% 
+  add_model(knn_spec) %>% 
+  add_recipe(player_recipe)
+```
+
+Now, as usual, we need to create the appropriate tuning grid.
+
+```{r}
+knn_params <- parameters(knn_spec) %>% 
+  update(neighbors = neighbors(range = c(1,20)))
+
+knn_grid <- grid_regular(knn_params, levels = 5)
+```
+
+Of course, we need to take another run on our folds.
+
+```{r}
+knn_tune <- tune_grid(
+  knn_workflow,
+  resamples = player_fold, 
+  grid = knn_grid
+)
+save(knn_tune, knn_workflow, file = "C:/ucsb 2022/2022Fall/131/repo/knn_tune.rda")
+```
+
+Let's see our final plot for the model.
+
+```{r}
+load("C:/ucsb 2022/2022Fall/131/repo/knn_tune.rda")
+autoplot(knn_tune)
+```
+
+Let's find out the best result we can get from KNN model.
+
+```{r}
+show_best(knn_tune, metric = "rmse")%>% select(-.estimator, -.config)
+
+```
+When number of neighbors equals 5, we have the least `rmse` 2.752802.
+
+## Conclusion Table for Models
+We have all four models fitted and tuned, and it will be clear to see which one is the best model by arranging them together.
+
+```{r}
+rf_best <- show_best(rf_tune, metric = "rmse")[1,]%>% select(-.estimator, -.config)
+bt_best <- show_best(bt_tune, metric = "rmse")[1,]%>% select(-.estimator, -.config)
+lasso_best <- show_best(lasso_tune, metric = "rmse")[1,]%>% select(-.estimator, -.config)
+knn_best <- show_best(knn_tune, metric = "rmse")[1,]%>% select(-.estimator, -.config)
+
+
+model_results <- tibble(Model = c("Random Forest","Boosted Trees", "Lasso Regression", "K-Nearest Neighbor"),
+                        rmse =    c(rf_best$mean,bt_best$mean,lasso_best$mean,knn_best$mean)) %>%
+  arrange(rmse)
+model_results
+```
+Lasso Regression model wins the game. We can do some prediction using our best model.
+
+## Testing Model on Test Data
+Let's fit our Lasso Regression model to our test data first.
+
+```{r}
+best_model <- lasso_workflow %>% 
+  finalize_workflow(select_best(lasso_tune, metric = "rmse"))
+
+best_fit <- fit(best_model, player_test)
+
+best_prediction <- predict(best_fit, new_data = player_test) %>% 
+  bind_cols(player_test %>% select(overall_rating)) 
+test_rmse <- best_prediction %>%
+  mutate(rmse = mean((overall_rating - .pred)^2) %>% sqrt())%>%
+  select(rmse)
+head(test_rmse,1)
+```
+We get a `rmse` 1.951325 for our test data which is slightly higher than our `rmse` for training data 1.896642. That is reasonable and indicates that our model does not overfitting on the training data.
+
+## Predictions for Best Model
+Let's check for how well our lasso model predicting the overall rating of our players in Premier League. Take Harry Kane, one of the greatest England forward, as an example. He is given 90 overall rating in FIFA22 which is extremely high. I wonder what rating our model will give him.
+
+```{r}
+hk <- data.frame(position = "F",
+                 preferred_foot = as.factor(0), # 0 for right-foot player
+                 pace = 70,
+                 shooting = 91,
+                 passing = 83,
+                 dribbling = 83,
+                 defending = 47,
+                 physical = 83,
+                 reaction = 92,
+                 balance = 70,
+                 power = 85,
+                 vision = 87)
+
+
+predict(best_fit, hk)
+
+```
+Wow, the result is 89.36812 which is almost the same as the real FIFA rating. That's exciting. Kevin De Bruyne is our next goal. Although Belgium has dropped from the ongoing World Cup Championship competition, Kevin is always top of the midfielders worldwide. He scores a 91 in FIFA22, and what will our model say about his overall ability.
+
+```{r}
+db <- data.frame(position = "M",
+                 preferred_foot = as.factor(0), # 0 for right-foot player
+                 pace = 76,
+                 shooting = 86,
+                 passing = 93,
+                 dribbling = 88,
+                 defending = 64,
+                 physical = 78,
+                 reaction = 91,
+                 balance = 78,
+                 power = 74,
+                 vision = 94)
+
+
+predict(best_fit, db)
+```
+That is perfect for Kevin De Bruyne. If with scientific representation of numbers, he would be a 91 player which is exactly FIFA gave him. 
+
+# Conclusion
+From our little testing experiment, we can proudly say that our lasso model is efficient and accurate in predicting the overall rating for players in FIFA game. That is beyond my prediction because I was expecting at least 2 stand error rate from the real value. 
+
+Although our model is good, we notice that among all models the best number of predictors is around 5. We are concerning that whether the five random chosen predictors are the same ones or not. If it is the case that approximately five in fifteen predictors are crucial, I wonder why there are a lot more variables provided for each player. Maybe the algorithm of the game requires multi-dimensional attributes to build a player model in the game. 
+
+Overall, we learned a lot from modeling our data and test-error processes. We achieve our goal smoothly and it may be beneficial for some gamers to run their business according to our model. 
+
+
